@@ -69,3 +69,7 @@ Log notice syslog
 conf-file=/etc/storage/dnsmasq/rkn-ipset-list.conf
 ```
 
+Добавить в /etc/storage/dnsmasq/hosts
+```
+192.168.1.1 blackhole.beeline.ru
+```
