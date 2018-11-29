@@ -1,33 +1,35 @@
 package main
 
 import (
-    //"github.com/davecgh/go-spew/spew"
+    "os/exec"
     "net/http"
     "flag"
     "log"
     "log/syslog"
-    "fmt"
     //"html"
-    "os/exec"
-    "time"
     "strings"
-    "os"
-    "bufio"
+    "net"
+    "fmt"
 )
 
-var listenIP, dnsmasqList, ipsetList, adminPage string
+var listenIP, listenPort, dnsmasqList, ipsetList, ipset6List, adminPage string
+var sysLog bool
 
 func init() {
     flag.StringVar(&listenIP, "ip", "192.168.1.1", "Listen IP")
-    flag.StringVar(&dnsmasqList, "dnsmasq-config", "/etc/storage/dnsmasq/rkn-ipset-list.conf", "dnsmasq config file for ipsec list")
-    flag.StringVar(&ipsetList, "ipset-list", "rkn", "IPSET list name")
+    flag.StringVar(&listenPort, "port", "80", "Listen port")
+    flag.StringVar(&ipsetList, "ipset-list-v4", "rkn", "IPSET IPv4 list name")
+    flag.StringVar(&ipset6List, "ipset-list-v6", "rkn6", "IPSET IPv6 list name")
     flag.StringVar(&adminPage, "admin-page", "http://192.168.1.1:8080", "Redirect to admin page")
+    flag.BoolVar(&sysLog, "syslog", false, "Log to syslog")
     flag.Parse()
 
-    if w, err := syslog.New(syslog.LOG_NOTICE, "rkn-redirect"); err == nil {
-        log.SetOutput(w)
-    } else {
-        log.Printf("Can't switch log output to syslog: %s", err)
+    if sysLog {
+        if w, err := syslog.New(syslog.LOG_NOTICE, "rkn-redirect"); err == nil {
+            log.SetOutput(w)
+        } else {
+            log.Printf("Can't switch log output to syslog: %s", err)
+        }
     }
 }
 
@@ -39,15 +41,8 @@ func main() {
             url := urlKey[0]
             host := hostFromUrl(url)
 
-            if notExistInDnsList(dnsmasqList, host) {
-                log.Printf("Add %s to %s", host, ipsetList)
-                addToDnsList(dnsmasqList, hostFromUrl(url))
-            }
+            addToIpsetList(host)
 
-            log.Println("Restart DNS server")
-            restartDnsServer()
-
-            time.Sleep(1 * time.Second)
             http.Redirect(w, r, "http://" + url, 302)
         } else {
             log.Printf("Just redirect to %s", adminPage)
@@ -55,49 +50,39 @@ func main() {
         }
     })
 
-    log.Printf("Starting web server on %s:80", listenIP)
-    log.Fatal(http.ListenAndServe(listenIP + ":80", nil))
+    log.Printf("Starting web server on %s:%s", listenIP, listenPort)
+    log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%s", listenIP, listenPort), nil))
 }
 
-func notExistInDnsList(list string, host string) bool {
-    file, err := os.Open(list)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer file.Close()
+func addToIpsetList(host string) {
+    if ips, err := net.LookupHost(host); err == nil {
+        for _, ip := range ips {
+            var list string
 
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        if scanner.Text() == fmt.Sprintf("ipset=/%s/%s\n", host, ipsetList) {
-            return false
-        }
-    }
+            if isIPv4(ip) {
+                list = ipsetList
+            } else {
+                list = ipset6List
+            }
 
-    if err := scanner.Err(); err != nil {
-        log.Fatal(err)
-    }
+            log.Printf("Add %s to ipset list %s", ip, list)
 
-    return true
-}
+            err := exec.Command("ipset", "-A", list, ip).Run()
 
-func addToDnsList(file string, host string) {
-    if f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-        defer f.Close()
-        if _, err = f.WriteString(fmt.Sprintf("ipset=/%s/%s\n", host, ipsetList)); err != nil {
-            log.Printf("Error write to ipset list file: %s", err)
+            if err != nil {
+                log.Printf("Can't add to ipset list %s: %s", list, err)
+            }
         }
     } else {
-        log.Printf("Error open ipset list file: %s", err)
+        log.Printf("Can't resolv %s: %s", host, err)
     }
+}
+
+func isIPv4(ip string) bool {
+    return net.ParseIP(ip).To4() != nil
 }
 
 func hostFromUrl(s string) string {
     return strings.Split(s, "/")[0]
-}
-
-func restartDnsServer() {
-    if err := exec.Command("/sbin/restart_dhcpd").Run(); err != nil {
-        log.Printf("Error restart DNS server: %s", err)
-    }
 }
 

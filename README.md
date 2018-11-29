@@ -18,6 +18,10 @@ PATH=/opt/sbin:/opt/bin:/opt/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/u
 . /opt/etc/init.d/rc.func
 ```
 
+```
+chmod +x /opt/etc/init.d/S35rkn-redirect
+```
+
 Перенести админку с 80 порта
 ```
 nvram set http_lanport 8080
@@ -26,9 +30,15 @@ nvram set http_lanport 8080
 
 Добавить в /etc/storage/started_script.sh
 ```
-ipset create rkn hash:ip maxelem 16777216
+logger -t post_wan_script.sh "Loading ipset modules"
+modprobe ip_set
+modprobe ip_set_hash_ip
+modprobe xt_set
+
+logger -t rkn "Create ipset tables"
+ipset create rkn hash:ip maxelem 16777216 family inet
+ipset create rkn6 hash:ip maxelem 16777216 family inet6
 ```
-там же раскоментировать ipset модули
 
 Добавить в /etc/storage/post_iptables_script.sh
 ```
@@ -36,6 +46,8 @@ PROXY_PORT="9040"
 
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 ```
 
 Добавить в /etc/storage/post_wan_script.sh
@@ -62,11 +74,6 @@ DataDirectory /opt/var/lib/tor
 ExitPolicy reject *:*
 ExitPolicy reject6 *:*
 Log notice syslog
-```
-
-Добавить в /etc/storage/dnsmasq/dnsmasq.conf
-```
-conf-file=/etc/storage/dnsmasq/rkn-ipset-list.conf
 ```
 
 Добавить в /etc/storage/dnsmasq/hosts
