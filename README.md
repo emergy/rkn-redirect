@@ -25,6 +25,7 @@ chmod +x /opt/etc/init.d/S35rkn-redirect
 Перенести админку с 80 порта
 ```
 nvram set http_lanport 8080
+nvram commit
 ```
 
 
