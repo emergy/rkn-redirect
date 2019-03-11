@@ -1,7 +1,9 @@
-собрать
+# собрать
 ```
-GOOS=linux GOARCH=mipsle go build
+GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build
 ```
+
+# Padavan
 скопировать в /opt/bin
 
 создать /opt/etc/init.d/S35rkn-redirect
@@ -81,3 +83,89 @@ Log notice syslog
 ```
 192.168.1.1 blackhole.beeline.ru
 ```
+
+# OpenWRT
+
+перенести админку с 80 порта в файле /etc/config/uhttpd
+
+создать /etc/init.d/rkn-redirect
+```
+#!/bin/sh /etc/rc.common
+
+START=50
+STOP=50
+
+USE_PROCD=1
+
+start_service() {
+    procd_open_instance
+    procd_set_param command /usr/bin/rkn-redirect
+    procd_close_instance
+}
+```
+
+```
+chmod +x /etc/init.d/rkn-redirect
+/etc/init.d/rkn-redirect enable
+/etc/init.d/rkn-redirect start
+```
+
+
+```
+opkg install ipset
+```
+
+дефолтный dnsmasq не умеер ipset
+```
+opkg remove dnsmasq
+opkg install dnsmasq-full
+```
+
+добавить в /etc/config/dhcp
+```
+config domain
+        option name 'blackhole.beeline.ru'
+        option ip '192.168.1.1'
+```
+
+/etc/config/firewall
+```
+config ipset
+        option name rkn
+        option storage hash
+        option match ip
+        option maxelem 16777216
+        option hashsize 1024
+        option enabled 1
+        option family ipv4
+```
+
+/etc/firewall.user
+```
+PROXY_PORT="9040"
+iptables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+iptables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+```
+
+```
+opkg install tor-geoip
+```
+
+/etc/tor/torrc
+```
+User tor
+TransPort 0.0.0.0:9040
+DNSPort 0.0.0.0:9053
+SOCKSPort 0.0.0.0:9050
+ExitNodes {de}
+DataDirectory /var/lib/tor
+ExitPolicy reject *:*
+ExitPolicy reject6 *:*
+Log notice syslog
+```
+
+```
+/etc/init.d/tor enable
+/etc/init.d/tor start
+```
+
