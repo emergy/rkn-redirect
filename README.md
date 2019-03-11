@@ -99,7 +99,7 @@ USE_PROCD=1
 
 start_service() {
     procd_open_instance
-    procd_set_param command /usr/bin/rkn-redirect
+    procd_set_param command /usr/bin/rkn-redirect -syslog
     procd_close_instance
 }
 ```
