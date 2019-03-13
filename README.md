@@ -49,8 +49,8 @@ PROXY_PORT="9040"
 
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
-ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
-ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn6 src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn6 dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 ```
 
 Добавить в /etc/storage/post_wan_script.sh
@@ -69,7 +69,7 @@ fi
 установить Tor. Настройки тора /opt/etc/tor/torrc
 ```
 User admin
-TransPort 0.0.0.0:9040
+TransPort 9040
 DNSPort 9053
 SOCKSPort 9050
 ExitNodes {de}
@@ -112,7 +112,8 @@ chmod +x /etc/init.d/rkn-redirect
 
 
 ```
-opkg install ipset
+opkg update
+opkg install ipset nf_nat_ipv6
 ```
 
 дефолтный dnsmasq не умеер ipset
@@ -138,6 +139,15 @@ config ipset
         option hashsize 1024
         option enabled 1
         option family ipv4
+
+config ipset
+        option name rkn6
+        option storage hash
+        option match ip
+        option maxelem 16777216
+        option hashsize 1024
+        option enabled 1
+        option family ipv6
 ```
 
 /etc/firewall.user
@@ -145,6 +155,8 @@ config ipset
 PROXY_PORT="9040"
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn6 src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn6 dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 ```
 
 ```
@@ -154,9 +166,9 @@ opkg install tor-geoip
 /etc/tor/torrc
 ```
 User tor
-TransPort 0.0.0.0:9040
-DNSPort 0.0.0.0:9053
-SOCKSPort 0.0.0.0:9050
+TransPort 9040
+DNSPort 9053
+SOCKSPort 9050
 ExitNodes {de}
 DataDirectory /var/lib/tor
 ExitPolicy reject *:*
