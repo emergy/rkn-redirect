@@ -113,7 +113,7 @@ chmod +x /etc/init.d/rkn-redirect
 
 ```
 opkg update
-opkg install ipset nf_nat_ipv6
+opkg install ipset kmod-nf-nat6
 ```
 
 дефолтный dnsmasq не умеер ipset
@@ -155,8 +155,12 @@ config ipset
 PROXY_PORT="9040"
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 iptables -t nat -I PREROUTING 1 -m set --match-set rkn dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+
 ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn6 src -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
 ip6tables -t nat -I PREROUTING 1 -m set --match-set rkn6 dst -p tcp --syn -j REDIRECT --to-ports $PROXY_PORT
+
+iptables -t nat -I OUTPUT 1 -p tcp -m set --match-set rkn dst -j REDIRECT --to-port $PROXY_PORT
+ip6tables -t nat -I OUTPUT 1 -p tcp -m set --match-set rkn6 dst -j REDIRECT --to-port $PROXY_PORT
 ```
 
 ```
